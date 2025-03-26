@@ -26,7 +26,7 @@ func run(executable string, command string) error {
 }
 
 func commit() error {
-	cmd := exec.Command("git", "commit", "-m", `"fix: updated via dotsyncer"`)
+	cmd := exec.Command("git", "commit", "-m", `fix: updated via dotsyncer`)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -50,7 +50,7 @@ func push(folder, branch string) error {
 		return err
 	}
 	commit()
-	return run("git", fmt.Sprintf("pull origin %s", branch))
+	return run("git", fmt.Sprintf("push origin %s", branch))
 }
 
 func clone(folder, repo, branch string) error {
@@ -91,6 +91,7 @@ func Update(configs []config.Config, doPush bool) error {
 			return fmt.Errorf("failed to update %s, error is %s", conf.Name, err)
 		}
 		if doPush {
+			fmt.Printf("Pushing changes to remote for %s\n", conf.Name)
 			err := push(folder, branch)
 			if err != nil {
 				return fmt.Errorf("failed to push changes to %s, err is %s", conf.Name, err)
