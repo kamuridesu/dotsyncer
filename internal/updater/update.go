@@ -49,10 +49,7 @@ func push(folder, branch string) error {
 	if err != nil {
 		return err
 	}
-	err = commit()
-	if err != nil {
-		return err
-	}
+	commit()
 	return run("git", fmt.Sprintf("pull origin %s", branch))
 }
 
