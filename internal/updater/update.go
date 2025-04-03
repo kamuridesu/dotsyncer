@@ -25,8 +25,8 @@ func run(executable string, command string) error {
 	return nil
 }
 
-func commit() error {
-	cmd := exec.Command("git", "commit", "-m", `fix: updated via dotsyncer`)
+func commit(message string) error {
+	cmd := exec.Command("git", "commit", "-m", message)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -38,7 +38,7 @@ func commit() error {
 	return nil
 }
 
-func push(folder, branch string) error {
+func push(folder, branch, message string) error {
 	oldCwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func push(folder, branch string) error {
 	if err != nil {
 		return err
 	}
-	commit()
+	commit(message)
 	return run("git", fmt.Sprintf("push origin %s", branch))
 }
 
@@ -74,10 +74,14 @@ func cloneOrPull(folder, repo, branch string) error {
 	return pull(folder)
 }
 
-func Update(configs []config.Config, doPush bool) error {
+func Update(configs []config.Config, doPush bool, message *string) error {
 	userHomeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
+	}
+	textMessage := `fix: updated via dotsyncer`
+	if message != nil && *message != "" {
+		textMessage = *message
 	}
 	for _, conf := range configs {
 		fmt.Printf("Updating %s\n", conf.Name)
@@ -92,7 +96,7 @@ func Update(configs []config.Config, doPush bool) error {
 		}
 		if doPush {
 			fmt.Printf("Pushing changes to remote for %s\n", conf.Name)
-			err := push(folder, branch)
+			err := push(folder, branch, textMessage)
 			if err != nil {
 				return fmt.Errorf("failed to push changes to %s, err is %s", conf.Name, err)
 			}

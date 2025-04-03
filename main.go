@@ -12,6 +12,7 @@ import (
 )
 
 func argparser() error {
+	commitMsg := flag.String("message", "", "commit message to be used")
 	flag.Parse()
 	verb := strings.Join(flag.Args(), " ")
 	if verb == "edit" {
@@ -21,10 +22,10 @@ func argparser() error {
 	if verb == "push" {
 		push = true
 	}
-	return sync(push)
+	return sync(push, commitMsg)
 }
 
-func sync(push bool) error {
+func sync(push bool, message *string) error {
 	conf, err := config.NewConfig()
 	if err != nil {
 		return err
@@ -33,7 +34,7 @@ func sync(push bool) error {
 		fmt.Println("Config file is empty!")
 		os.Exit(1)
 	}
-	err = updater.Update(conf, push)
+	err = updater.Update(conf, push, message)
 	if err != nil {
 		return fmt.Errorf("error while syncinc, err is %s", err)
 	}
