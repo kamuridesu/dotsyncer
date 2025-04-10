@@ -1,28 +1,30 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
-	"strings"
-
-	"flag"
 
 	"github.com/kamuridesu/dotsyncer/internal/config"
 	"github.com/kamuridesu/dotsyncer/internal/updater"
 )
 
+type Args struct {
+	edit    *bool
+	push    *bool
+	message *string
+}
+
 func argparser() error {
-	commitMsg := flag.String("message", "", "commit message to be used")
+	args := &Args{}
+	args.message = flag.String("message", "", "commit message to be used")
+	args.edit = flag.Bool("edit", false, "edit configs")
+	args.push = flag.Bool("push", false, "push changes")
 	flag.Parse()
-	verb := strings.Join(flag.Args(), " ")
-	if verb == "edit" {
+	if *args.edit {
 		return config.EditConfig()
 	}
-	push := false
-	if verb == "push" {
-		push = true
-	}
-	return sync(push, commitMsg)
+	return sync(*args.push, args.message)
 }
 
 func sync(push bool, message *string) error {
