@@ -33,7 +33,7 @@ func sync(push bool, message *string) error {
 		return err
 	}
 	if conf == nil {
-		fmt.Println("Config file is empty!")
+		fmt.Println("Config file is empty! Use `-edit` to add your configs")
 		os.Exit(1)
 	}
 	err = updater.Update(conf, push, message)

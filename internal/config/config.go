@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -40,6 +41,9 @@ func GetConfigPath() (string, error) {
 func LoadConfig(path string) ([]Config, error) {
 	file, err := os.Open(path)
 	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	defer file.Close()

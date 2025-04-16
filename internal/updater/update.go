@@ -1,77 +1,44 @@
 package updater
 
 import (
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
-	"strings"
+	"sync"
 
 	"github.com/kamuridesu/dotsyncer/internal/config"
+	"github.com/kamuridesu/dotsyncer/internal/git"
 )
 
-func run(executable string, command string) error {
-	cmd := exec.Command(executable, strings.Split(command, " ")...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		return err
+func updateConfig(wg *sync.WaitGroup, conf config.Config, userHomeDir, textMessage string, doPush bool) error {
+	defer wg.Done()
+	fmt.Printf("[%s] Updating\n", conf.Name)
+	folder := path.Join(userHomeDir, ".config", conf.Name)
+	branch := conf.Branch
+	if branch == "" {
+		branch = "main"
 	}
-	cmd.Wait()
-	if err := cmd.ProcessState.ExitCode(); err != 0 {
-		return fmt.Errorf("command %s failed with exit code %d", executable, err)
+	err := git.CloneOrPull(folder, conf.Repo, branch)
+	if err != nil {
+		return fmt.Errorf("[%s] failed to update, error is %s", conf.Name, err)
+	}
+	if doPush {
+		hasChanges, err := git.HasChanges(folder)
+		if err != nil {
+			return fmt.Errorf("[%s] failed to track changes, err is %s", conf.Name, err)
+		}
+		if !hasChanges {
+			fmt.Printf("[%s] Working on a clean tree\n", conf.Name)
+			return nil
+		}
+		fmt.Printf("[%s] Pushing changes to remote\n", conf.Name)
+		err = git.Push(folder, branch, textMessage)
+		if err != nil {
+			return fmt.Errorf("[%s] failed to push changes, err is %s", conf.Name, err)
+		}
 	}
 	return nil
-}
 
-func commit(message string) error {
-	cmd := exec.Command("git", "commit", "-m", message)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	if err := cmd.Wait(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func push(folder, branch, message string) error {
-	oldCwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	defer os.Chdir(oldCwd)
-	os.Chdir(folder)
-	err = run("git", "add .")
-	if err != nil {
-		return err
-	}
-	commit(message)
-	return run("git", fmt.Sprintf("push origin %s", branch))
-}
-
-func clone(folder, repo, branch string) error {
-	return run("git", fmt.Sprintf("clone %s %s --recursive --branch %s", repo, folder, branch))
-}
-
-func pull(folder string) error {
-	oldCwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	defer os.Chdir(oldCwd)
-	os.Chdir(folder)
-	return run("git", "pull")
-}
-
-func cloneOrPull(folder, repo, branch string) error {
-	if _, err := os.Stat(folder); errors.Is(err, os.ErrNotExist) {
-		return clone(folder, repo, branch)
-	}
-	return pull(folder)
 }
 
 func Update(configs []config.Config, doPush bool, message *string) error {
@@ -83,24 +50,11 @@ func Update(configs []config.Config, doPush bool, message *string) error {
 	if message != nil && *message != "" {
 		textMessage = *message
 	}
+	wg := new(sync.WaitGroup)
+	wg.Add(len(configs))
 	for _, conf := range configs {
-		fmt.Printf("Updating %s\n", conf.Name)
-		folder := path.Join(userHomeDir, ".config", conf.Name)
-		branch := conf.Branch
-		if branch == "" {
-			branch = "main"
-		}
-		err := cloneOrPull(folder, conf.Repo, branch)
-		if err != nil {
-			return fmt.Errorf("failed to update %s, error is %s", conf.Name, err)
-		}
-		if doPush {
-			fmt.Printf("Pushing changes to remote for %s\n", conf.Name)
-			err := push(folder, branch, textMessage)
-			if err != nil {
-				return fmt.Errorf("failed to push changes to %s, err is %s", conf.Name, err)
-			}
-		}
+		go updateConfig(wg, conf, userHomeDir, textMessage, doPush)
 	}
+	wg.Wait()
 	return nil
 }
