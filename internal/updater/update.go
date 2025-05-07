@@ -10,7 +10,7 @@ import (
 	"github.com/kamuridesu/dotsyncer/internal/git"
 )
 
-func updateConfig(wg *sync.WaitGroup, conf config.Config, userHomeDir, textMessage string, doPush bool) error {
+func updateConfig(wg *sync.WaitGroup, mu *sync.Mutex, conf config.Config, userHomeDir, textMessage string, doPush bool) error {
 	defer wg.Done()
 	fmt.Printf("[%s] Updating\n", conf.Name)
 	folder := path.Join(userHomeDir, ".config", conf.Name)
@@ -18,12 +18,16 @@ func updateConfig(wg *sync.WaitGroup, conf config.Config, userHomeDir, textMessa
 	if branch == "" {
 		branch = "main"
 	}
+	mu.Lock()
 	err := git.CloneOrPull(folder, conf.Repo, branch)
+	mu.Unlock()
 	if err != nil {
 		return fmt.Errorf("[%s] failed to update, error is %s", conf.Name, err)
 	}
 	if doPush {
+		mu.Lock()
 		hasChanges, err := git.HasChanges(folder)
+		mu.Unlock()
 		if err != nil {
 			return fmt.Errorf("[%s] failed to track changes, err is %s", conf.Name, err)
 		}
@@ -32,7 +36,9 @@ func updateConfig(wg *sync.WaitGroup, conf config.Config, userHomeDir, textMessa
 			return nil
 		}
 		fmt.Printf("[%s] Pushing changes to remote\n", conf.Name)
+		mu.Lock()
 		err = git.Push(folder, branch, textMessage)
+		mu.Unlock()
 		if err != nil {
 			return fmt.Errorf("[%s] failed to push changes, err is %s", conf.Name, err)
 		}
@@ -46,6 +52,7 @@ func Update(configs []config.Config, doPush bool, message *string) error {
 	if err != nil {
 		return err
 	}
+	mu := &sync.Mutex{}
 	textMessage := `fix: updated via dotsyncer`
 	if message != nil && *message != "" {
 		textMessage = *message
@@ -53,7 +60,7 @@ func Update(configs []config.Config, doPush bool, message *string) error {
 	wg := new(sync.WaitGroup)
 	wg.Add(len(configs))
 	for _, conf := range configs {
-		go updateConfig(wg, conf, userHomeDir, textMessage, doPush)
+		go updateConfig(wg, mu, conf, userHomeDir, textMessage, doPush)
 	}
 	wg.Wait()
 	return nil
